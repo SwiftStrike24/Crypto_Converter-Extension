@@ -84,37 +84,66 @@ const CurrencyConverter: React.FC = () => {
   const [convertedAmount, setConvertedAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!amount) {
+      setConvertedAmount('');
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
-      // Get the correct coin ID for the API
       const coinId = getCoinId(fromCurrency);
-      
-      const response = await axios.get(
-        'https://api.coingecko.com/api/v3/simple/price',
-        {
-          params: {
-            ids: coinId,
-            vs_currencies: toCurrency.toLowerCase(),
-            x_cg_demo_api_key: import.meta.env.VITE_COINGECKO_API_KEY,
-          },
+      let result: number;
+
+      // If converting from crypto to fiat
+      if (CRYPTO_CURRENCIES.includes(fromCurrency)) {
+        const response = await axios.get(
+          'https://api.coingecko.com/api/v3/simple/price',
+          {
+            params: {
+              ids: coinId,
+              vs_currencies: toCurrency.toLowerCase(),
+              x_cg_demo_api_key: import.meta.env.VITE_COINGECKO_API_KEY,
+            },
+          }
+        );
+
+        if (!response.data?.[coinId]?.[toCurrency.toLowerCase()]) {
+          throw new Error('Invalid response from API');
         }
-      );
 
-      const data = response.data;
-      if (!data || !data[coinId]) {
-        throw new Error('Invalid response from API');
+        const rate = response.data[coinId][toCurrency.toLowerCase()];
+        result = Number(amount) * rate;
+      } else {
+        // If converting from fiat to crypto
+        const coinId = getCoinId(toCurrency);
+        const response = await axios.get(
+          'https://api.coingecko.com/api/v3/simple/price',
+          {
+            params: {
+              ids: coinId,
+              vs_currencies: fromCurrency.toLowerCase(),
+              x_cg_demo_api_key: import.meta.env.VITE_COINGECKO_API_KEY,
+            },
+          }
+        );
+
+        if (!response.data?.[coinId]?.[fromCurrency.toLowerCase()]) {
+          throw new Error('Invalid response from API');
+        }
+
+        const rate = response.data[coinId][fromCurrency.toLowerCase()];
+        result = Number(amount) / rate;
       }
 
-      const rate = data[coinId][toCurrency.toLowerCase()];
-      if (!rate) {
-        throw new Error('Rate not available for this pair');
-      }
-
-      const result = Number(amount) * rate;
-      setConvertedAmount(result.toFixed(2));
+      // Adjust decimal places based on whether result is crypto or fiat
+      const isResultCrypto = CRYPTO_CURRENCIES.includes(toCurrency);
+      setConvertedAmount(result.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: isResultCrypto ? 8 : 2,
+      }));
     } catch (error) {
       console.error('Conversion error:', error);
       setConvertedAmount('Error fetching rates');
@@ -123,14 +152,15 @@ const CurrencyConverter: React.FC = () => {
     }
   };
 
-  // Helper function to get correct coin IDs for CoinGecko API
+  // Update getCoinId to include all supported coins
   const getCoinId = (currency: string): string => {
     const coinIds: { [key: string]: string } = {
       'BTC': 'bitcoin',
       'ETH': 'ethereum',
-      'USDT': 'tether',
-      'BNB': 'binancecoin',
-      'XRP': 'ripple'
+      'SOL': 'solana',
+      'USDC': 'usd-coin',
+      'BONK': 'bonk',
+      'JUP': 'jupiter'
     };
     return coinIds[currency] || currency.toLowerCase();
   };
@@ -143,16 +173,18 @@ const CurrencyConverter: React.FC = () => {
   };
 
   useEffect(() => {
-    if (amount) {
-      handleSubmit({} as React.FormEvent);
-    }
+    const debounceTimer = setTimeout(() => {
+      handleSubmit();
+    }, 500); // Debounce API calls by 500ms
+
+    return () => clearTimeout(debounceTimer);
   }, [amount, fromCurrency, toCurrency]);
 
   return (
     <Container>
       <Title>Crypto Converter</Title>
       
-      <LivePriceFeed cryptocurrency={fromCurrency} />
+      <LivePriceFeed cryptocurrency={CRYPTO_CURRENCIES.includes(fromCurrency) ? fromCurrency : toCurrency} />
       
       <InputGroup>
         <Input
@@ -160,16 +192,20 @@ const CurrencyConverter: React.FC = () => {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="Enter amount"
+          aria-label="Amount to convert"
         />
         <Select
           value={fromCurrency}
           onChange={(e) => setFromCurrency(e.target.value)}
+          aria-label="Convert from currency"
         >
-          {CRYPTO_CURRENCIES.map((currency) => (
-            <option key={currency} value={currency}>
-              {currency}
-            </option>
-          ))}
+          <optgroup label="Cryptocurrencies">
+            {CRYPTO_CURRENCIES.map((currency) => (
+              <option key={currency} value={currency}>
+                {currency}
+              </option>
+            ))}
+          </optgroup>
         </Select>
       </InputGroup>
 
@@ -179,12 +215,17 @@ const CurrencyConverter: React.FC = () => {
         <Select
           value={toCurrency}
           onChange={(e) => setToCurrency(e.target.value)}
+          aria-label="Convert to currency"
         >
-          {FIAT_CURRENCIES.map((currency) => (
-            <option key={currency} value={currency}>
-              {currency}
-            </option>
-          ))}
+          <optgroup label="Fiat Currencies">
+            {FIAT_CURRENCIES.map((currency) => (
+              <option key={currency} value={currency}
+                disabled={currency === fromCurrency}
+              >
+                {currency}
+              </option>
+            ))}
+          </optgroup>
         </Select>
       </InputGroup>
 

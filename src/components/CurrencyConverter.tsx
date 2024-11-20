@@ -51,105 +51,114 @@ const Select = styled.select`
   }
 `;
 
-const SwapButton = styled.button`
-  background: ${props => props.theme.primary};
-  border: none;
-  border-radius: 8px;
-  color: white;
-  padding: 12px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background 0.2s;
-  &:hover {
-    background: ${props => props.theme.primaryLight};
-  }
-`;
-
-const Result = styled.div`
-  background: ${props => props.theme.surface};
-  border-radius: 8px;
-  padding: 15px;
-  text-align: center;
-  font-size: 18px;
-  margin-top: 10px;
-`;
-
 const CRYPTO_CURRENCIES = ['BTC', 'ETH', 'SOL', 'USDC', 'BONK', 'JUP'];
 const FIAT_CURRENCIES = ['USD', 'CAD', 'EUR', 'PHP'];
 
-const CurrencyConverter: React.FC = () => {
-  const [amount, setAmount] = useState<string>('');
-  const [fromCurrency, setFromCurrency] = useState<string>('BTC');
-  const [toCurrency, setToCurrency] = useState<string>('USD');
-  const [convertedAmount, setConvertedAmount] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+const ResultContainer = styled.div`
+  background: ${props => props.theme.surface};
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!amount) {
-      setConvertedAmount('');
+  &:hover {
+    background: ${props => props.theme.inputBackground};
+  }
+
+  &:active {
+    opacity: 0.8;
+  }
+`;
+
+const ResultText = styled.div`
+  font-size: 18px;
+  color: ${props => props.theme.text};
+`;
+
+const CopyIndicator = styled.div`
+  font-size: 12px;
+  color: ${props => props.theme.primaryLight};
+  margin-top: 4px;
+`;
+
+const CurrencyConverter: React.FC = () => {
+  const [cryptoAmount, setCryptoAmount] = useState<string>('');
+  const [fiatAmount, setFiatAmount] = useState<string>('');
+  const [cryptoCurrency, setCryptoCurrency] = useState<string>('BTC');
+  const [fiatCurrency, setFiatCurrency] = useState<string>('USD');
+  const [showCopyIndicator, setShowCopyIndicator] = useState(false);
+  const [lastEditedField, setLastEditedField] = useState<'crypto' | 'fiat'>('crypto');
+
+  const handleCryptoChange = async (value: string) => {
+    setLastEditedField('crypto');
+    setCryptoAmount(value);
+    if (!value) {
+      setFiatAmount('');
       return;
     }
     
-    setIsLoading(true);
-
     try {
-      const coinId = getCoinId(fromCurrency);
-      let result: number;
+      const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+        params: {
+          ids: getCoinId(cryptoCurrency),
+          vs_currencies: fiatCurrency.toLowerCase(),
+          x_cg_demo_api_key: import.meta.env.VITE_COINGECKO_API_KEY,
+        },
+      });
 
-      // If converting from crypto to fiat
-      if (CRYPTO_CURRENCIES.includes(fromCurrency)) {
-        const response = await axios.get(
-          'https://api.coingecko.com/api/v3/simple/price',
-          {
-            params: {
-              ids: coinId,
-              vs_currencies: toCurrency.toLowerCase(),
-              x_cg_demo_api_key: import.meta.env.VITE_COINGECKO_API_KEY,
-            },
-          }
-        );
-
-        if (!response.data?.[coinId]?.[toCurrency.toLowerCase()]) {
-          throw new Error('Invalid response from API');
-        }
-
-        const rate = response.data[coinId][toCurrency.toLowerCase()];
-        result = Number(amount) * rate;
-      } else {
-        // If converting from fiat to crypto
-        const coinId = getCoinId(toCurrency);
-        const response = await axios.get(
-          'https://api.coingecko.com/api/v3/simple/price',
-          {
-            params: {
-              ids: coinId,
-              vs_currencies: fromCurrency.toLowerCase(),
-              x_cg_demo_api_key: import.meta.env.VITE_COINGECKO_API_KEY,
-            },
-          }
-        );
-
-        if (!response.data?.[coinId]?.[fromCurrency.toLowerCase()]) {
-          throw new Error('Invalid response from API');
-        }
-
-        const rate = response.data[coinId][fromCurrency.toLowerCase()];
-        result = Number(amount) / rate;
-      }
-
-      // Adjust decimal places based on whether result is crypto or fiat
-      const isResultCrypto = CRYPTO_CURRENCIES.includes(toCurrency);
-      setConvertedAmount(result.toLocaleString(undefined, {
+      const rate = response.data[getCoinId(cryptoCurrency)][fiatCurrency.toLowerCase()];
+      const result = Number(value) * rate;
+      const formattedResult = result.toLocaleString(undefined, {
         minimumFractionDigits: 2,
-        maximumFractionDigits: isResultCrypto ? 8 : 2,
-      }));
+        maximumFractionDigits: 2,
+      });
+      setFiatAmount(formattedResult.replace(/,/g, ''));
     } catch (error) {
       console.error('Conversion error:', error);
-      setConvertedAmount('Error fetching rates');
-    } finally {
-      setIsLoading(false);
+      setFiatAmount('Error');
     }
+  };
+
+  const handleFiatChange = async (value: string) => {
+    setLastEditedField('fiat');
+    setFiatAmount(value);
+    if (!value) {
+      setCryptoAmount('');
+      return;
+    }
+
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+        params: {
+          ids: getCoinId(cryptoCurrency),
+          vs_currencies: fiatCurrency.toLowerCase(),
+          x_cg_demo_api_key: import.meta.env.VITE_COINGECKO_API_KEY,
+        },
+      });
+
+      const rate = response.data[getCoinId(cryptoCurrency)][fiatCurrency.toLowerCase()];
+      const result = Number(value) / rate;
+      const formattedResult = result.toLocaleString(undefined, {
+        minimumFractionDigits: 8,
+        maximumFractionDigits: 8,
+      });
+      setCryptoAmount(formattedResult.replace(/,/g, ''));
+    } catch (error) {
+      console.error('Conversion error:', error);
+      setCryptoAmount('Error');
+    }
+  };
+
+  const handleCopyClick = async () => {
+    if (!cryptoAmount || !fiatAmount) return;
+    
+    const textToCopy = lastEditedField === 'crypto' ? fiatAmount : cryptoAmount;
+    await navigator.clipboard.writeText(textToCopy);
+    
+    setShowCopyIndicator(true);
+    setTimeout(() => setShowCopyIndicator(false), 2000);
   };
 
   // Update getCoinId to include all supported coins
@@ -165,39 +174,44 @@ const CurrencyConverter: React.FC = () => {
     return coinIds[currency] || currency.toLowerCase();
   };
 
-  const handleSwap = () => {
-    setFromCurrency(toCurrency);
-    setToCurrency(fromCurrency);
-    setAmount('');
-    setConvertedAmount('');
-  };
+  useEffect(() => {
+    if (cryptoAmount) {
+      const debounceTimer = setTimeout(() => {
+        handleCryptoChange(cryptoAmount);
+      }, 500);
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [cryptoCurrency, fiatCurrency]);
 
   useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      handleSubmit();
-    }, 500); // Debounce API calls by 500ms
-
-    return () => clearTimeout(debounceTimer);
-  }, [amount, fromCurrency, toCurrency]);
+    if (fiatAmount) {
+      const debounceTimer = setTimeout(() => {
+        handleFiatChange(fiatAmount);
+      }, 500);
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [cryptoCurrency, fiatCurrency]);
 
   return (
     <Container>
       <Title>Crypto Converter</Title>
       
-      <LivePriceFeed cryptocurrency={CRYPTO_CURRENCIES.includes(fromCurrency) ? fromCurrency : toCurrency} />
+      <LivePriceFeed cryptocurrency={cryptoCurrency} />
       
       <InputGroup>
         <Input
           type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Enter amount"
-          aria-label="Amount to convert"
+          value={cryptoAmount}
+          onChange={(e) => handleCryptoChange(e.target.value)}
+          placeholder="Enter crypto amount"
+          aria-label="Crypto amount"
+          step="any"
         />
         <Select
-          value={fromCurrency}
-          onChange={(e) => setFromCurrency(e.target.value)}
-          aria-label="Convert from currency"
+          value={cryptoCurrency}
+          onChange={(e) => setCryptoCurrency(e.target.value)}
+          aria-label="Select cryptocurrency"
+          title="Select cryptocurrency"
         >
           <optgroup label="Cryptocurrencies">
             {CRYPTO_CURRENCIES.map((currency) => (
@@ -209,19 +223,24 @@ const CurrencyConverter: React.FC = () => {
         </Select>
       </InputGroup>
 
-      <SwapButton onClick={handleSwap}>⇅ Swap</SwapButton>
-
       <InputGroup>
+        <Input
+          type="number"
+          value={fiatAmount}
+          onChange={(e) => handleFiatChange(e.target.value)}
+          placeholder="Enter fiat amount"
+          aria-label="Fiat amount"
+          step="any"
+        />
         <Select
-          value={toCurrency}
-          onChange={(e) => setToCurrency(e.target.value)}
-          aria-label="Convert to currency"
+          value={fiatCurrency}
+          onChange={(e) => setFiatCurrency(e.target.value)}
+          aria-label="Select fiat currency"
+          title="Select fiat currency"
         >
           <optgroup label="Fiat Currencies">
             {FIAT_CURRENCIES.map((currency) => (
-              <option key={currency} value={currency}
-                disabled={currency === fromCurrency}
-              >
+              <option key={currency} value={currency}>
                 {currency}
               </option>
             ))}
@@ -229,10 +248,15 @@ const CurrencyConverter: React.FC = () => {
         </Select>
       </InputGroup>
 
-      {convertedAmount && (
-        <Result>
-          {isLoading ? 'Converting...' : `${convertedAmount} ${toCurrency}`}
-        </Result>
+      {(cryptoAmount && fiatAmount) && (
+        <ResultContainer onClick={handleCopyClick}>
+          <ResultText>
+            {cryptoAmount} {cryptoCurrency} = {fiatAmount} {fiatCurrency}
+          </ResultText>
+          <CopyIndicator>
+            {showCopyIndicator ? 'Copied!' : `Click to copy ${lastEditedField === 'crypto' ? fiatCurrency : cryptoCurrency} value`}
+          </CopyIndicator>
+        </ResultContainer>
       )}
     </Container>
   );

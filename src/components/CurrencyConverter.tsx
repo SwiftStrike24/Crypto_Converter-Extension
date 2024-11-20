@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
+import LivePriceFeed from './LivePriceFeed';
 
 const Container = styled.div`
   display: flex;
@@ -83,46 +84,55 @@ const CurrencyConverter: React.FC = () => {
   const [convertedAmount, setConvertedAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const API_KEY = 'CG-P9tKCtSKSsQpFA2A654dTQ65';
-
-  const convertCurrency = async () => {
-    if (!amount || isNaN(Number(amount))) return;
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
+
     try {
+      // Get the correct coin ID for the API
+      const coinId = getCoinId(fromCurrency);
+      
       const response = await axios.get(
-        `https://api.coingecko.com/api/v3/simple/price`,
+        'https://api.coingecko.com/api/v3/simple/price',
         {
           params: {
-            ids: CRYPTO_CURRENCIES.map(c => c.toLowerCase()).join(','),
-            vs_currencies: FIAT_CURRENCIES.map(c => c.toLowerCase()).join(','),
-            x_cg_demo_api_key: API_KEY,
+            ids: coinId,
+            vs_currencies: toCurrency.toLowerCase(),
+            x_cg_demo_api_key: import.meta.env.VITE_COINGECKO_API_KEY,
           },
         }
       );
 
-      const rates = response.data;
-      let result = 0;
-
-      if (CRYPTO_CURRENCIES.includes(fromCurrency) && FIAT_CURRENCIES.includes(toCurrency)) {
-        // Crypto to Fiat
-        const rate = rates[fromCurrency.toLowerCase()][toCurrency.toLowerCase()];
-        result = Number(amount) * rate;
-      } else if (FIAT_CURRENCIES.includes(fromCurrency) && CRYPTO_CURRENCIES.includes(toCurrency)) {
-        // Fiat to Crypto
-        const rate = rates[toCurrency.toLowerCase()][fromCurrency.toLowerCase()];
-        result = Number(amount) / rate;
-      } else {
-        throw new Error('Invalid currency conversion pair');
+      const data = response.data;
+      if (!data || !data[coinId]) {
+        throw new Error('Invalid response from API');
       }
 
-      setConvertedAmount(result.toFixed(8));
+      const rate = data[coinId][toCurrency.toLowerCase()];
+      if (!rate) {
+        throw new Error('Rate not available for this pair');
+      }
+
+      const result = Number(amount) * rate;
+      setConvertedAmount(result.toFixed(2));
     } catch (error) {
       console.error('Conversion error:', error);
       setConvertedAmount('Error fetching rates');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Helper function to get correct coin IDs for CoinGecko API
+  const getCoinId = (currency: string): string => {
+    const coinIds: { [key: string]: string } = {
+      'BTC': 'bitcoin',
+      'ETH': 'ethereum',
+      'USDT': 'tether',
+      'BNB': 'binancecoin',
+      'XRP': 'ripple'
+    };
+    return coinIds[currency] || currency.toLowerCase();
   };
 
   const handleSwap = () => {
@@ -134,13 +144,15 @@ const CurrencyConverter: React.FC = () => {
 
   useEffect(() => {
     if (amount) {
-      convertCurrency();
+      handleSubmit({} as React.FormEvent);
     }
   }, [amount, fromCurrency, toCurrency]);
 
   return (
     <Container>
       <Title>Crypto Converter</Title>
+      
+      <LivePriceFeed cryptocurrency={fromCurrency} />
       
       <InputGroup>
         <Input

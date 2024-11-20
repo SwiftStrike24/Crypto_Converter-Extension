@@ -6,8 +6,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rollupOptions: {
+      input: 'index.html',
       output: {
-        manualChunks: undefined,
+        entryFileNames: '[name].js',
+        chunkFileNames: '[name].js',
+        assetFileNames: '[name].[ext]',
       },
     },
   },

@@ -281,6 +281,10 @@ const CurrencyConverter: React.FC = () => {
     }
   }, [cryptoCurrency, fiatCurrency]);
 
+  const handleDeleteToken = (tokenId: string) => {
+    setCustomTokens(prev => prev.filter(token => token.id !== tokenId));
+  };
+
   return (
     <Container>
       <Title>Crypto Converter</Title>
@@ -372,6 +376,8 @@ const CurrencyConverter: React.FC = () => {
           onClose={() => setShowTokenSearch(false)}
           onAddTokens={handleAddTokens}
           existingTokens={allTokens.map(t => t.symbol)}
+          customTokens={customTokens}
+          onDeleteToken={handleDeleteToken}
         />
       )}
     </Container>

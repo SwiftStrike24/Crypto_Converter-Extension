@@ -112,6 +112,32 @@ const AddButton = styled.button`
   }
 `;
 
+const ExistingTokensSection = styled.div`
+  margin-bottom: 20px;
+  border-bottom: 1px solid ${props => props.theme.border};
+  padding-bottom: 15px;
+`;
+
+const SectionTitle = styled.h3`
+  font-size: 14px;
+  color: ${props => props.theme.textSecondary};
+  margin-bottom: 10px;
+`;
+
+const DeleteButton = styled.button`
+  background: none;
+  border: none;
+  color: ${props => props.theme.error};
+  cursor: pointer;
+  padding: 5px;
+  font-size: 16px;
+  opacity: 0.8;
+
+  &:hover {
+    opacity: 1;
+  }
+`;
+
 interface Token {
   id: string;
   symbol: string;
@@ -123,9 +149,17 @@ interface TokenSearchProps {
   onClose: () => void;
   onAddTokens: (tokens: Token[]) => void;
   existingTokens: string[];
+  customTokens: Token[];
+  onDeleteToken: (tokenId: string) => void;
 }
 
-const TokenSearch: React.FC<TokenSearchProps> = ({ onClose, onAddTokens, existingTokens }) => {
+const TokenSearch: React.FC<TokenSearchProps> = ({ 
+  onClose, 
+  onAddTokens, 
+  existingTokens,
+  customTokens,
+  onDeleteToken 
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Token[]>([]);
   const [selectedTokens, setSelectedTokens] = useState<Token[]>([]);
@@ -200,22 +234,52 @@ const TokenSearch: React.FC<TokenSearchProps> = ({ onClose, onAddTokens, existin
         />
       </SearchHeader>
 
+      {customTokens.length > 0 && (
+        <ExistingTokensSection>
+          <SectionTitle>Your Custom Tokens</SectionTitle>
+          {customTokens.map((token) => (
+            <TokenItem key={token.id} selected={false}>
+              <TokenIcon src={token.image} alt={token.name} />
+              <TokenInfo>
+                <TokenSymbol>{token.symbol}</TokenSymbol>
+                <TokenName>{token.name}</TokenName>
+              </TokenInfo>
+              <DeleteButton 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteToken(token.id);
+                }}
+              >
+                🗑️
+              </DeleteButton>
+            </TokenItem>
+          ))}
+        </ExistingTokensSection>
+      )}
+
       <ResultsList>
         {isLoading ? (
           <div>Searching...</div>
-        ) : searchResults.map(token => (
-          <TokenItem
-            key={token.id}
-            selected={selectedTokens.some(t => t.id === token.id)}
-            onClick={() => handleTokenClick(token)}
-          >
-            <TokenIcon src={token.image} alt={token.name} />
-            <TokenInfo>
-              <TokenSymbol>{token.symbol}</TokenSymbol>
-              <TokenName>{token.name}</TokenName>
-            </TokenInfo>
-          </TokenItem>
-        ))}
+        ) : searchResults.length > 0 ? (
+          <>
+            <SectionTitle>Search Results</SectionTitle>
+            {searchResults.map(token => (
+              <TokenItem
+                key={token.id}
+                selected={selectedTokens.some(t => t.id === token.id)}
+                onClick={() => handleTokenClick(token)}
+              >
+                <TokenIcon src={token.image} alt={token.name} />
+                <TokenInfo>
+                  <TokenSymbol>{token.symbol}</TokenSymbol>
+                  <TokenName>{token.name}</TokenName>
+                </TokenInfo>
+              </TokenItem>
+            ))}
+          </>
+        ) : searchQuery && (
+          <div>No results found</div>
+        )}
       </ResultsList>
 
       <AddButton

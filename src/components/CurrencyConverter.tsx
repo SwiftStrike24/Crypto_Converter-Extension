@@ -152,9 +152,8 @@ const CurrencyConverter: React.FC = () => {
         <Select
           value={fromCurrency}
           onChange={(e) => setFromCurrency(e.target.value)}
-          aria-label="From Currency"
         >
-          {[...CRYPTO_CURRENCIES, ...FIAT_CURRENCIES].map((currency) => (
+          {CRYPTO_CURRENCIES.map((currency) => (
             <option key={currency} value={currency}>
               {currency}
             </option>
@@ -168,9 +167,8 @@ const CurrencyConverter: React.FC = () => {
         <Select
           value={toCurrency}
           onChange={(e) => setToCurrency(e.target.value)}
-          aria-label="To Currency"
         >
-          {[...CRYPTO_CURRENCIES, ...FIAT_CURRENCIES].map((currency) => (
+          {FIAT_CURRENCIES.map((currency) => (
             <option key={currency} value={currency}>
               {currency}
             </option>
